@@ -1,0 +1,15 @@
+{
+  "name": "Due – countdowns",
+  "short_name": "Due",
+  "description": "Countdowns for tests, bills, birthdays and everything else, with a busy-day heat map.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#EEF0EB",
+  "theme_color": "#2F6B4F",
+  "icons": [
+    {"src": "icon-192.png", "sizes": "192x192", "type": "image/png"},
+    {"src": "icon-512.png", "sizes": "512x512", "type": "image/png"},
+    {"src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable"}
+  ]
+}
