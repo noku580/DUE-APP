@@ -352,7 +352,7 @@ function loadMap(from,days){
   state.items.forEach(function(it){
     if(it.done)return;
     var dates=[it.date];
-    if(it.repeat&&it.repeat!=='none'){var n=it.date;for(var i=0;i<40;i++){n=nextDate(n,it.repeat);if(n>=end)break;dates.push(n)}}
+    if(it.repeat&&it.repeat!=='none'){var n=it.date;for(var i=0;i<4000;i++){n=nextDate(n,it.repeat);if(n>=end)break;if(n>=addDays(from,-3))dates.push(n)}}
     dates.forEach(function(d,idx){
       var w=W[it.weight]||2;
       add(d,w*2+1,it.title,cap(it.weight));
@@ -367,7 +367,7 @@ function level(sc){return sc<=0?0:sc<=3?1:sc<=6?2:3}
 var HEAT=['var(--h0)','var(--h1)','var(--h2)','var(--h3)'];
 
 /* ---------- UI state ---------- */
-var tab='home', selDay=todayIso(), draft=null, openId=null;
+var tab='home', selDay=todayIso(), draft=null, openId=null, calY=today().getFullYear(), calM=today().getMonth();
 
 /* ---------- render ---------- */
 var app=document.getElementById('app');
@@ -407,25 +407,34 @@ function renderHome(){
     '<button class="card strip" data-go="calendar"><div class="stripHead"><span>Next 7 days</span>'+busyText+'</div><div class="week">'+week+'</div></button>'+body;
 }
 function renderCal(){
-  var t=today(),mon=new Date(t);mon.setDate(mon.getDate()-((mon.getDay()+6)%7));
-  var from=iso(mon),map=loadMap(from,35),cells='';
-  for(var i=0;i<35;i++){
-    var d=addDays(from,i),sc=(map[d]||{}).score||0,lv=level(sc),dt=parseIso(d);
+  var first=new Date(calY,calM,1),start=new Date(first);start.setDate(1-((first.getDay()+6)%7));
+  var daysIn=new Date(calY,calM+1,0).getDate(),lead=(first.getDay()+6)%7,cellsN=Math.ceil((lead+daysIn)/7)*7;
+  var from=iso(start),map=loadMap(from,cellsN),cells='';
+  for(var i=0;i<cellsN;i++){
+    var d=addDays(from,i),sc=(map[d]||{}).score||0,lv=level(sc),dt=parseIso(d),out=dt.getMonth()!==calM;
     var cls=(d===todayIso()?' today':'')+(d===selDay?' sel':'')+(lv===3?' hot':'');
-    cells+='<button class="'+cls.trim()+'" data-day="'+d+'" style="background:'+HEAT[lv]+'" aria-label="'+niceLong(d)+', load '+sc+' of 10">'+dt.getDate()+'</button>';
+    cells+='<button class="'+cls.trim()+'" data-day="'+d+'" style="background:'+HEAT[lv]+';'+(out?'opacity:.4':'')+'" aria-label="'+niceLong(d)+', load '+sc+' of 10">'+dt.getDate()+'</button>';
   }
-  var info=map[selDay]||{score:0,items:[]};
+  var sd=parseIso(selDay),selMap=(sd.getMonth()===calM&&sd.getFullYear()===calY)?map:loadMap(selDay,1);
+  var info=selMap[selDay]||{score:0,items:[]};
   var lines=info.items.length?info.items.map(function(x){return '<div class="line"><span>'+esc(x.t)+'</span><span>'+esc(x.w)+'</span></div>'}).join(''):'<div class="line"><span>Nothing due. A good day to get ahead.</span><span></span></div>';
   var tip='';
   if(info.score>=7){
-    var light=null;for(var j=1;j<=4;j++){var c=addDays(selDay,-j);if(c>=todayIso()&&((map[c]||{}).score||0)<=3){light=c;break}}
+    var m2=loadMap(addDays(selDay,-4),4),light=null;
+    for(var j=1;j<=4;j++){var c=addDays(selDay,-j);if(c>=todayIso()&&((m2[c]||{}).score||0)<=3){light=c;break}}
     tip='<div class="suggest" style="background:var(--redSoft)">This is a packed day.'+(light?' '+nice(light)+' is calm, so try starting some of this then.':' Try starting some of this earlier.')+'</div>';
   }
-  var lastD=addDays(from,34);
+  var t=today(),isNow=(t.getMonth()===calM&&t.getFullYear()===calY);
+  var nav='<div style="display:flex;align-items:center;gap:8px;margin-bottom:14px">'+
+    '<button class="iconBtn" data-cal="-1" aria-label="Previous month" style="background:var(--bg)"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 5l-7 7 7 7"/></svg></button>'+
+    '<label style="flex:1;position:relative;text-align:center;font-weight:700;font-size:18px">'+MOFULL[calM]+' '+calY+
+      '<input type="month" id="monthPick" value="'+calY+'-'+pad(calM+1)+'" aria-label="Pick a month and year" style="position:absolute;inset:0;opacity:0;width:100%;cursor:pointer"></label>'+
+    '<button class="iconBtn" data-cal="1" aria-label="Next month" style="background:var(--bg)"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 5l7 7-7 7"/></svg></button></div>';
   app.innerHTML='<div class="top"><h1>How busy you are</h1>'+coinPill()+'</div>'+
-    '<div class="card" style="margin-top:18px"><div class="stripHead"><span>'+parseIso(from).getDate()+' '+MO[parseIso(from).getMonth()]+' to '+parseIso(lastD).getDate()+' '+MO[parseIso(lastD).getMonth()]+'</span><small style="color:var(--muted)">Tap a day</small></div>'+
+    '<div class="card" style="margin-top:18px">'+nav+
     '<div class="heads">'+['M','T','W','T','F','S','S'].map(function(x){return '<div>'+x+'</div>'}).join('')+'</div><div class="grid">'+cells+'</div>'+
-    '<div class="legend">Calm <i style="background:var(--h0)"></i><i style="background:var(--h1)"></i><i style="background:var(--h2)"></i><i style="background:var(--h3)"></i> Packed</div></div>'+
+    '<div class="legend" style="justify-content:space-between"><span style="display:flex;align-items:center;gap:6px">Calm <i style="background:var(--h0)"></i><i style="background:var(--h1)"></i><i style="background:var(--h2)"></i><i style="background:var(--h3)"></i> Packed</span>'+
+    (isNow?'<span>Tap the month to jump</span>':'<button data-cal="today" style="border:none;background:none;color:var(--green);font-weight:700;font-size:13px;min-height:32px">Back to today</button>')+'</div></div>'+
     '<div class="card dayList" style="margin-top:14px"><div class="stripHead" style="margin-bottom:6px"><span>'+niceLong(selDay)+'</span><small class="'+(info.score>=7?'urgent':'')+'" style="'+(info.score<7?'color:var(--green)':'')+'">Load '+info.score+'/10</small></div>'+lines+tip+'</div>';
 }
 function renderCoins(){
@@ -528,12 +537,18 @@ function refreshDetail(){var it=state.items.find(function(i){return i.id===openI
 /* ---------- events ---------- */
 document.addEventListener('click',function(e){
   var el=e.target.closest('button,[data-close]');if(!el)return;
+  if(el.dataset.tab||el.dataset.go){var t0=today();calY=t0.getFullYear();calM=t0.getMonth();selDay=todayIso()}
   if(el.dataset.tab){tab=el.dataset.tab;render();window.scrollTo(0,0);return}
   if(el.dataset.go){tab=el.dataset.go;render();window.scrollTo(0,0);return}
   if(el.id==='openAdd'){openAdd();return}
   if(el.hasAttribute('data-close')){closeSheet();return}
   if(el.dataset.open){openDetail(el.dataset.open);return}
-  if(el.dataset.day){selDay=el.dataset.day;render();return}
+  if(el.dataset.cal){
+    if(el.dataset.cal==='today'){var tt=today();calY=tt.getFullYear();calM=tt.getMonth();selDay=todayIso()}
+    else{calM+=+el.dataset.cal;if(calM<0){calM=11;calY--}if(calM>11){calM=0;calY++}selDay=iso(new Date(calY,calM,1));if(calY===today().getFullYear()&&calM===today().getMonth())selDay=todayIso()}
+    render();return;
+  }
+  if(el.dataset.day){selDay=el.dataset.day;var dd2=parseIso(selDay);if(dd2.getMonth()!==calM){calM=dd2.getMonth();calY=dd2.getFullYear()}render();return}
   if(el.dataset.themeSet){state.theme=el.dataset.themeSet;applyTheme();save();render();return}
   if(el.hasAttribute('data-showdone')){
     var list=state.items.filter(function(i){return i.done}).sort(function(a,b){return a.doneAt<b.doneAt?1:-1});
@@ -572,6 +587,7 @@ function addStep(it){
 }
 document.addEventListener('change',function(e){
   var t=e.target;
+  if(t.id==='monthPick'&&t.value){var pm=t.value.split('-');calY=+pm[0];calM=+pm[1]-1;selDay=iso(new Date(calY,calM,1));if(calY===today().getFullYear()&&calM===today().getMonth())selDay=todayIso();render();return}
   if(t.id==='importFile'&&t.files&&t.files[0]){importBackup(t.files[0]);t.value='';return}
   if(t.dataset.step&&openId){
     var it=state.items.find(function(i){return i.id===openId});if(!it)return;
